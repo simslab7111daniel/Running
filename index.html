@@ -1,0 +1,1251 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>專業跑者科學化訓練分析與視覺化儀表板 (心率與步頻全數據整合版)</title>
+    <style>
+        :root {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-primary: #f8fafc;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent-blue: #38bdf8;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-purple: #a855f7;
+            --border: #334155;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+            --radius-sm: 8px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            padding: 24px;
+        }
+
+        .container {
+            max-width: 1320px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100%;
+            background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            flex-wrap: wrap;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .header-title h1 {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .header-title p {
+            color: var(--text-secondary);
+            font-size: 15px;
+            margin-top: 6px;
+        }
+
+        .athlete-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .tag {
+            background: rgba(56, 189, 248, 0.12);
+            color: var(--accent-blue);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            padding: 6px 14px;
+            border-radius: 9999px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .tag.target {
+            background: rgba(244, 63, 94, 0.15);
+            color: var(--accent-rose);
+            border-color: rgba(244, 63, 94, 0.35);
+        }
+
+        .tag.strength {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-emerald);
+            border-color: rgba(16, 185, 129, 0.35);
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-blue);
+        }
+
+        .kpi-label {
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .kpi-value {
+            font-size: 26px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .kpi-sub {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 24px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 15px;
+            font-weight: 600;
+            padding: 10px 18px;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            color: var(--accent-blue);
+            background: rgba(56, 189, 248, 0.12);
+            border-bottom: 2px solid var(--accent-blue);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .dashboard-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+
+        .section-header {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-desc {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            margin-top: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13.5px;
+            text-align: left;
+        }
+
+        th {
+            background: #111827;
+            color: var(--text-secondary);
+            font-weight: 600;
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+            color: var(--text-primary);
+            white-space: nowrap;
+        }
+
+        tr:hover td {
+            background: var(--bg-card-hover);
+        }
+
+        .badge-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .badge-long { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+        .badge-tempo { background: rgba(244, 63, 94, 0.2); color: #fb7185; }
+        .badge-easy { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-interval { background: rgba(245, 158, 11, 0.2); color: #fbbf24; }
+        .badge-treadmill { background: rgba(6, 182, 212, 0.2); color: #22d3ee; }
+
+        .plan-week {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            margin-bottom: 16px;
+            overflow: hidden;
+        }
+
+        .plan-week-header {
+            background: #111827;
+            padding: 14px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .plan-week-title {
+            font-weight: 700;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .plan-days-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 12px;
+            padding: 16px;
+            background: #0f172a;
+        }
+
+        .plan-day-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px;
+        }
+
+        .plan-day-card.run-day { border-left: 4px solid var(--accent-blue); }
+        .plan-day-card.lift-day { border-left: 4px solid var(--accent-emerald); }
+        .plan-day-card.rest-day { border-left: 4px solid var(--text-muted); opacity: 0.75; }
+
+        .plan-day-name {
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--text-secondary);
+            margin-bottom: 4px;
+        }
+
+        .plan-day-activity {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .plan-day-desc {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.4;
+        }
+
+        .chart-box {
+            position: relative;
+            background: #111827;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        canvas {
+            width: 100% !important;
+            height: 280px !important;
+        }
+
+        .callout {
+            background: rgba(56, 189, 248, 0.08);
+            border-left: 4px solid var(--accent-blue);
+            padding: 16px;
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin: 16px 0;
+            font-size: 14px;
+        }
+
+        .callout.warning { background: rgba(245, 158, 11, 0.08); border-left-color: var(--accent-amber); }
+        .callout.success { background: rgba(16, 185, 129, 0.08); border-left-color: var(--accent-emerald); }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 868px) {
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-top">
+                <div class="header-title">
+                    <h1>🏃‍♂️ 跑者全方位體能分析與雙賽事備賽儀表板 (心率與步頻全數據整合版)</h1>
+                    <p>全 14 場訓練數據完整解碼 × 實測心率區間 × 實測步頻分析 × 11週雙賽事課表</p>
+                </div>
+                <div class="athlete-tags">
+                    <span class="tag">170 cm / 77 kg (體脂 18%)</span>
+                    <span class="tag strength">重訓 (一、三、五)</span>
+                    <span class="tag">跑步 (二、四、日)</span>
+                    <span class="tag target">11/15 鹿港 10K (主攻 Sub-56)</span>
+                    <span class="tag target">12/20 台北 21K (主攻 Sub-2:15)</span>
+                </div>
+            </div>
+            <div class="callout success">
+                <strong>教練最新數據回顧總結：</strong> 數據證實：您在 <strong>9/27 (日) 已正式跑出 10K 59分02秒（均速 5:54/km，心率 168 bpm，步頻 158.1 spm）</strong>，打破 60 分鐘關卡！而 9/29 操場 400M 間歇末圈衝刺，步頻更瞬間飆升至 <strong>176.4 spm（配速 4:47/km，心率 178 bpm）</strong>，證明神經快肌協調極具潛力！
+            </div>
+        </header>
+
+        <!-- KPI Summary Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">總累計跑量 (全14場) <span>📊</span></div>
+                <div class="kpi-value">104.0 <span style="font-size:16px;font-weight:500;">km</span></div>
+                <div class="kpi-sub">總耗時 12h 08m / 週跑量 22-30 km</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">實測 10K 個人最佳 (PB) <span>⚡</span></div>
+                <div class="kpi-value">59:02</div>
+                <div class="kpi-sub">09/27 實測 (配速 5:54/km, HR 168)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">最長單次距離 (LSD) <span>🏔️</span></div>
+                <div class="kpi-value">11.98 <span style="font-size:16px;font-weight:500;">km</span></div>
+                <div class="kpi-sub">10/04 完成 (01:24:40 / 7:04/km)</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">常態步頻 vs 最高步頻 <span>👟</span></div>
+                <div class="kpi-value">158 <span style="font-size:16px;font-weight:500;">/ 176</span></div>
+                <div class="kpi-sub">常態 158 spm | 衝刺最高 176.4 spm</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">校準後跑力 (VDOT) <span>🎯</span></div>
+                <div class="kpi-value">34.5</div>
+                <div class="kpi-sub">T配速 5:45 | E配速 6:40-7:15</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-label">總運動熱量消耗 <span>💥</span></div>
+                <div class="kpi-value">9,755 <span style="font-size:16px;font-weight:500;">kcal</span></div>
+                <div class="kpi-sub">平均每公里消耗約 93.8 kcal</div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab(event, 'tab-overview')">📊 全數據分析與互動圖表</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-diagnosis')">🧬 心率區間與步頻深入診斷</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-targets')">🏆 鹿港10K & 台北21K 完賽配速</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-plan')">📅 11週雙目標進階課表</button>
+            <button class="tab-btn" onclick="switchTab(event, 'tab-strength')">🏋️ 重訓與下肢防護指南</button>
+        </div>
+
+        <!-- Tab 1: 數據分析與可視化圖表 -->
+        <div id="tab-overview" class="tab-content active">
+            <div class="grid-2">
+                <div class="chart-box">
+                    <h3 style="margin-bottom:12px; font-size:16px; color:var(--accent-blue);">📈 14 場訓練單次距離 (km) 堆疊進程</h3>
+                    <canvas id="distChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3 style="margin-bottom:12px; font-size:16px; color:var(--accent-rose);">⏱️ 訓練平均配速 (分:秒/km) 走勢</h3>
+                    <canvas id="paceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid-2">
+                <div class="chart-box">
+                    <h3 style="margin-bottom:12px; font-size:16px; color:var(--accent-amber);">💓 實測平均心率 (bpm) 與各區間走勢</h3>
+                    <canvas id="hrChart"></canvas>
+                </div>
+                <div class="chart-box">
+                    <h3 style="margin-bottom:12px; font-size:16px; color:var(--accent-purple);">👟 步頻 (spm) 變化與步幅 (m) 趨勢</h3>
+                    <canvas id="cadChart"></canvas>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">📋 完整 14 筆路跑與跑步機訓練日誌全景表</h2>
+                    <p class="section-desc">包含實測心率、步頻、步幅、總步數與教練分段解析（已合併 9/29 操場間歇與剔除 9/6 暖身）</p>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>日期與時間</th>
+                                <th>訓練型態</th>
+                                <th>距離</th>
+                                <th>總耗時</th>
+                                <th>平均配速</th>
+                                <th>平均心率</th>
+                                <th>平均步頻</th>
+                                <th>步幅</th>
+                                <th>總步數</th>
+                                <th>卡路里</th>
+                                <th>訓練特徵與分段表現</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td><strong>09/06 (日) 09:52</strong></td>
+                                <td><span class="badge-type badge-long">長距離耐力</span></td>
+                                <td>10.06 km</td>
+                                <td>1h 05m 07s</td>
+                                <td>6:28/km</td>
+                                <td><strong>161 bpm</strong></td>
+                                <td><strong>161.9 spm</strong></td>
+                                <td>1.04 m</td>
+                                <td>10,543</td>
+                                <td>924 kcal</td>
+                                <td>初次 10K 巡航測試，步頻 162 spm 表現工整</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td><strong>09/08 (二) 18:34</strong></td>
+                                <td><span class="badge-type badge-easy">基礎有氧</span></td>
+                                <td>5.10 km</td>
+                                <td>35m 27s</td>
+                                <td>6:56/km</td>
+                                <td><strong>150 bpm</strong></td>
+                                <td><strong>158.1 spm</strong></td>
+                                <td>0.93 m</td>
+                                <td>5,605</td>
+                                <td>470 kcal</td>
+                                <td>標準 Zone 2 有氧跑，心率精準維持在 150 bpm</td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td><strong>09/10 (四) 17:36</strong></td>
+                                <td><span class="badge-type badge-easy">有氧恢復</span></td>
+                                <td>5.18 km</td>
+                                <td>34m 42s</td>
+                                <td>6:41/km</td>
+                                <td><strong>151 bpm</strong></td>
+                                <td><strong>160.3 spm</strong></td>
+                                <td>0.95 m</td>
+                                <td>5,561</td>
+                                <td>471 kcal</td>
+                                <td>步頻回升至 160 spm，節奏輕快穩定</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td><strong>09/13 (日) 09:21</strong></td>
+                                <td><span class="badge-type badge-easy">有氧走跑</span></td>
+                                <td>6.44 km</td>
+                                <td>57m 35s</td>
+                                <td>8:56/km</td>
+                                <td><strong>159 bpm</strong></td>
+                                <td><strong>124.7 spm</strong></td>
+                                <td>0.97 m</td>
+                                <td>7,178</td>
+                                <td>772 kcal</td>
+                                <td>前 4K 6:18~6:25，第 5K 步行休息 (10:36) 導致步頻均值下降</td>
+                            </tr>
+                            <tr>
+                                <td>5</td>
+                                <td><strong>09/15 (二) 19:52</strong></td>
+                                <td><span class="badge-type badge-treadmill">跑步機有氧</span></td>
+                                <td>4.77 km</td>
+                                <td>38m 32s</td>
+                                <td>8:04/km</td>
+                                <td><strong>122 bpm</strong></td>
+                                <td><strong>127.0 spm</strong></td>
+                                <td>1.07 m</td>
+                                <td>4,893</td>
+                                <td>378 kcal</td>
+                                <td>步數感應完成，心率非常低 (低強度)</td>
+                            </tr>
+                            <tr>
+                                <td>6</td>
+                                <td><strong>09/16 (三) 17:43</strong></td>
+                                <td><span class="badge-type badge-tempo">有氧耐力</span></td>
+                                <td>8.84 km</td>
+                                <td>1h 00m 10s</td>
+                                <td>6:48/km</td>
+                                <td><strong>154 bpm</strong></td>
+                                <td><strong>146.0 spm</strong></td>
+                                <td>1.07 m</td>
+                                <td>8,784</td>
+                                <td>797 kcal</td>
+                                <td>距離拉長至接近 9K，步頻 146 spm 略微偏大步</td>
+                            </tr>
+                            <tr>
+                                <td>7</td>
+                                <td><strong>09/18 (五) 18:35</strong></td>
+                                <td><span class="badge-type badge-tempo">漸速節奏跑</span></td>
+                                <td>6.03 km</td>
+                                <td>38m 58s</td>
+                                <td>6:27/km</td>
+                                <td><strong>157 bpm</strong></td>
+                                <td><strong>158.8 spm</strong></td>
+                                <td>0.99 m</td>
+                                <td>6,189</td>
+                                <td>534 kcal</td>
+                                <td>負分段加速跑，末 3K: 6:13, 6:11, 6:00</td>
+                            </tr>
+                            <tr>
+                                <td>8</td>
+                                <td><strong>09/20 (日) 22:12</strong></td>
+                                <td><span class="badge-type badge-long">長距離耐力</span></td>
+                                <td>10.07 km</td>
+                                <td>1h 08m 11s</td>
+                                <td>6:46/km</td>
+                                <td><strong>152 bpm</strong></td>
+                                <td><strong>156.5 spm</strong></td>
+                                <td>1.04 m</td>
+                                <td>10,670</td>
+                                <td>905 kcal</td>
+                                <td>夜間長跑，10K 平均心率僅 152 bpm，有氧效率極佳</td>
+                            </tr>
+                            <tr>
+                                <td>9</td>
+                                <td><strong>09/23 (三) 12:01</strong></td>
+                                <td><span class="badge-type badge-treadmill">跑步機有氧</span></td>
+                                <td>6.00 km</td>
+                                <td>45m 07s</td>
+                                <td>7:31/km</td>
+                                <td><strong>142 bpm</strong></td>
+                                <td><strong>162.5 spm</strong></td>
+                                <td>--</td>
+                                <td>7,333</td>
+                                <td>569 kcal</td>
+                                <td>跑步機定速巡航，心率極平穩 (142 bpm)，步頻達 162.5 spm</td>
+                            </tr>
+                            <tr>
+                                <td>10</td>
+                                <td><strong>09/25 (五) 13:08</strong></td>
+                                <td><span class="badge-type badge-tempo">速度突破</span></td>
+                                <td>5.50 km</td>
+                                <td>34m 41s</td>
+                                <td>6:18/km</td>
+                                <td><strong>159 bpm</strong></td>
+                                <td><strong>158.5 spm</strong></td>
+                                <td>1.02 m</td>
+                                <td>5,496</td>
+                                <td>484 kcal</td>
+                                <td>後兩公里開出 5:59、5:55，展現次 6分速適應性</td>
+                            </tr>
+                            <tr style="background:rgba(16, 185, 129, 0.12); border-left: 4px solid var(--accent-emerald);">
+                                <td>11</td>
+                                <td><strong>09/27 (日) 08:28</strong></td>
+                                <td><span class="badge-type badge-long" style="background:rgba(16, 185, 129, 0.3); color:#34d399;">10K Sub-60 實測突破!</span></td>
+                                <td><strong>10.17 km</strong></td>
+                                <td>1h 00m 21s</td>
+                                <td><strong style="color:var(--accent-emerald);">5:56/km</strong></td>
+                                <td><strong>168 bpm</strong></td>
+                                <td><strong>158.1 spm</strong></td>
+                                <td>1.08 m</td>
+                                <td>9,539</td>
+                                <td>906 kcal</td>
+                                <td><strong>【重大里程碑】前 10K 官方分段 59:02 (5:54/km)</strong>！第 9K 5:50、第 10K 5:52，平均心率 168 bpm 穩定發揮！</td>
+                            </tr>
+                            <tr style="background:rgba(245, 158, 11, 0.08);">
+                                <td>12</td>
+                                <td><strong>09/29 (二) 19:22</strong></td>
+                                <td><span class="badge-type badge-interval">400M操場間歇 (完整合併)</span></td>
+                                <td><strong>5.73 km</strong></td>
+                                <td>45m 58s</td>
+                                <td>8:01/km (移動5:19)</td>
+                                <td><strong>170 bpm</strong></td>
+                                <td><strong>124.0 spm</strong> (衝刺176.4)</td>
+                                <td>1.00 m (衝刺1.15)</td>
+                                <td>5,698</td>
+                                <td>681 kcal</td>
+                                <td>含 13趟 400m 跑走間歇 + <strong>末圈 350m 極速衝刺 @ 4:47/km (HR 178 bpm, 步頻 176.4 spm)</strong></td>
+                            </tr>
+                            <tr>
+                                <td>13</td>
+                                <td><strong>10/01 (四) 20:54</strong></td>
+                                <td><span class="badge-type badge-tempo">穩態巡航</span></td>
+                                <td>8.14 km</td>
+                                <td>59m 04s</td>
+                                <td>7:15/km</td>
+                                <td><strong>144 bpm</strong></td>
+                                <td><strong>161.7 spm</strong></td>
+                                <td>0.86 m</td>
+                                <td>9,554</td>
+                                <td>737 kcal</td>
+                                <td>精準 Zone 2 巡航，心率僅 144 bpm，小步高頻 (步幅 0.86m, 161.7 spm) 極度省力</td>
+                            </tr>
+                            <tr>
+                                <td>14</td>
+                                <td><strong>10/04 (日) 18:06</strong></td>
+                                <td><span class="badge-type badge-long">巔峰長距離 LSD</span></td>
+                                <td>11.98 km</td>
+                                <td>1h 24m 40s</td>
+                                <td>7:04/km</td>
+                                <td><strong>150 bpm</strong></td>
+                                <td><strong>159.2 spm</strong></td>
+                                <td>0.97 m</td>
+                                <td>13,477</td>
+                                <td>1,127 kcal</td>
+                                <td>突破 12K 關卡，平均心率維持 150 bpm，後半程無心率漂移 (Decoupling)</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: 生理診斷 -->
+        <div id="tab-diagnosis" class="tab-content">
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">🧬 實測心率區間與步頻力學深度解析</h2>
+                    <p class="section-desc">結合 14 場訓練完整的 Fitbit Charge 6 光學心率、步頻與步幅感測數據</p>
+                </div>
+
+                <div class="grid-2">
+                    <div style="background:#111827; padding:20px; border-radius:var(--radius-md); border:1px solid var(--border);">
+                        <h3 style="color:var(--accent-emerald); font-size:16px; margin-bottom:12px;">💓 運動生理心率區間 (HR Zones) 精確標定</h3>
+                        <ul style="padding-left:20px; font-size:14px; line-height:1.8; color:var(--text-secondary);">
+                            <li><strong style="color:var(--text-primary);">Zone 2 基礎有氧區 (140 ~ 152 bpm)：</strong> 10/1 巡航心率 144 bpm、10/4 12K LSD 均心率 150 bpm、9/23 跑步機 142 bpm。證實您在 140~152 bpm 擁有絕佳的脂肪代謝效率，是台北半馬 21K 最關鍵的續航基礎。</li>
+                            <li><strong style="color:var(--text-primary);">Zone 3 馬拉松/有氧閾值區 (153 ~ 162 bpm)：</strong> 9/6 (161 bpm)、9/18 (157 bpm)、9/25 (159 bpm)。在此區間能以 6:15~6:30/km 順暢奔馳，這是台北半馬目標 Sub-2:15 的理想巡航心率！</li>
+                            <li><strong style="color:var(--text-primary);">Zone 4 乳酸閾值區 (165 ~ 174 bpm)：</strong> 9/27 10K Sub-60 (59:02) 平均心率為 168 bpm（後段階梯上升至 172~176 bpm）。證明您的乳酸閾值 (LTHR) 穩固落在 168~170 bpm，鹿港 10K 賽事即可鎖定在此區間全力輸出。</li>
+                            <li><strong style="color:var(--text-primary);">Zone 5 無氧衝刺極限 (175+ bpm)：</strong> 9/29 操場間歇與末圈衝刺達 178 bpm。心肺天花板高，能承受終點前的全力攻頂。</li>
+                        </ul>
+                    </div>
+
+                    <div style="background:#111827; padding:20px; border-radius:var(--radius-md); border:1px solid var(--border);">
+                        <h3 style="color:var(--accent-purple); font-size:16px; margin-bottom:12px;">👟 實測步頻 (Cadence) 與步幅生物力學診斷</h3>
+                        <ul style="padding-left:20px; font-size:14px; line-height:1.8; color:var(--text-secondary);">
+                            <li><strong style="color:var(--text-primary);">常態路跑步頻約 158 ~ 162 spm：</strong> 平時路跑大多維持在 158~162 步/分，步幅在 0.95~1.08 米。對於 170cm、77kg 的肌肉型跑者，此步頻略低，落地煞車效應稍顯明顯。</li>
+                            <li><strong style="color:var(--text-primary);">10/1 縮短步幅的高效證明：</strong> 10/1 您的步幅主動縮小至 0.86 米，步頻升至 161.7 spm，結果平均心率僅 144 bpm！證明「小步高頻」能大幅節省體能消耗！</li>
+                            <li><strong style="color:var(--text-primary);">9/29 衝刺證實具備 176 spm 能力：</strong> 在 400m 間歇末圈衝刺至 4:47/km 時，您的步頻自動躍升至 <strong>176.4 spm</strong>，說明神經反射已具備高頻能力。</li>
+                            <li><strong style="color:var(--accent-blue);">教練提頻方針：</strong> 後續訓練將目標定為日常輕鬆跑 <strong>166 ~ 170 spm</strong>，質量跑與賽事推向 <strong>172 ~ 178 spm</strong>。77kg 體重在每次落地時的關節吸震負擔將減少 20% 以上！</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: 上修後賽事目標 -->
+        <div id="tab-targets" class="tab-content">
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">🏆 雙賽事最新上調進攻目標與實戰配速方案</h2>
+                    <p class="section-desc">依據 9/27 實測 10K 59:02 (HR 168) 及 10/4 12K LSD 扎實完賽，全面升級 A / B / C 策略</p>
+                </div>
+
+                <div class="grid-2">
+                    <div style="background:#111827; padding:22px; border-radius:var(--radius-md); border:1px solid rgba(56, 189, 248, 0.3);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <h3 style="color:var(--accent-blue); font-size:18px;">🎯 11/15 鹿港馬拉松 10K (進階戰術)</h3>
+                            <span class="tag target">倒數 6 週</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div style="background:var(--bg-card); padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--accent-emerald);">
+                                <strong style="color:var(--accent-emerald);">目標 A (極限挑戰): 54:30 (配速 5:27/km, HR ~172)</strong>
+                                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">若步頻拉升至 174 spm，配合第 4-5 週間歇刺激，有機會衝出 54 分巔峰！</p>
+                            </div>
+                            <div style="background:var(--bg-card); padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--accent-blue);">
+                                <strong style="color:var(--accent-blue);">目標 B (推薦主攻核心): 56:30 (配速 5:39/km, HR ~168)</strong>
+                                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;"><strong>【最穩健進攻策略】</strong>較 9/27 實測大幅進步 2 分半鐘！前 5K 28:30、後 5K 28:00 完美負分段。</p>
+                            </div>
+                            <div style="background:var(--bg-card); padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--accent-amber);">
+                                <strong style="color:var(--accent-amber);">目標 C (穩健破PB): Sub-59 (58:30 / 配速 5:51/km)</strong>
+                                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">以 9/27 體感為基準，即便面臨海邊逆風也能百分之百穩穩創下個人官方紀錄！</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="background:#111827; padding:22px; border-radius:var(--radius-md); border:1px solid rgba(244, 63, 94, 0.3);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <h3 style="color:var(--accent-rose); font-size:18px;">🏅 12/20 台北馬拉松 21K (進階戰術)</h3>
+                            <span class="tag target">倒數 11 週</span>
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:10px;">
+                            <div style="background:var(--bg-card); padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--accent-emerald);">
+                                <strong style="color:var(--accent-emerald);">目標 A (夢想高標): 2:09:59 (Sub-2:10 / 配速 6:09/km)</strong>
+                                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">若鹿港 10K 達到 55分水平，台北半馬具備強力衝擊 2小時10分大關的實力！</p>
+                            </div>
+                            <div style="background:var(--bg-card); padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--accent-blue);">
+                                <strong style="color:var(--accent-blue);">目標 B (推薦主攻核心): 2:14:59 (Sub-2:15 / 配速 6:23/km)</strong>
+                                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;"><strong>【最推薦目標】</strong>將目前 10K 巡航體感延伸。心率鎖定在 Zone 3 (155~162 bpm)，穩定破 PB。</p>
+                            </div>
+                            <div style="background:var(--bg-card); padding:12px; border-radius:var(--radius-sm); border-left:3px solid var(--accent-amber);">
+                                <strong style="color:var(--accent-amber);">目標 C (穩健保底): 2:19:30 (Sub-2:20 / 配速 6:36/km)</strong>
+                                <p style="font-size:12px; color:var(--text-muted); margin-top:2px;">即便後段河濱掉速，亦能絕對確保打破 2小時20分大關！</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 4: 11週進階版訓練課表 -->
+        <div id="tab-plan" class="tab-content">
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">📅 11週進階雙目標週期化總課表 (心率與步頻指引版)</h2>
+                    <p class="section-desc">結合實測 VDOT 34.5 與 Zone 2/3/4 心率錨定，兼顧 3次重訓與下肢修復</p>
+                </div>
+
+                <!-- Phase 1: 鹿港10K備戰期 (W1 - W6) -->
+                <h3 style="color:var(--accent-blue); margin-bottom:12px; font-size:17px;">🚩 第一階段：鹿港 10K 衝刺 Sub-56 速度耐力期 (第 1 ~ 6 週)</h3>
+                
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 1 週 (10/05 - 10/11) ｜ 閾值配速校準與步頻調校 (目標 168+ spm) ｜ 週跑量約 23 km</span><span class="tag">基礎期</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (10/05)</div><div class="plan-day-activity">🏋️ 上肢肌力</div><div class="plan-day-desc">臥推、引體向上、啞鈴肩推 + 核心抗伸展。下肢完全休息。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (10/06)</div><div class="plan-day-activity">🏃 質量跑：乳酸閾值跑</div><div class="plan-day-desc">熱身 1.5k + <strong>4 km 節奏跑 @ 5:45/km (HR 165-170, 步頻 170+)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (10/07)</div><div class="plan-day-activity">🏋️ 下肢專項力量</div><div class="plan-day-desc">保加利亞分腿蹲 4x8、單腳 RDL、站姿提踵、臀橋。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (10/08)</div><div class="plan-day-activity">🏃 輕鬆有氧跑</div><div class="plan-day-desc"><strong>6 km @ 6:50-7:15/km (HR 140-150)</strong>，小步輕柔排酸。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (10/09)</div><div class="plan-day-activity">🏋️ 全身肌耐力</div><div class="plan-day-desc">滑輪下拉、帕洛夫推舉、核心抗旋轉 (無大重量下肢)。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (10/10)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">充足睡眠、滾筒筋膜放鬆。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (10/11)</div><div class="plan-day-activity">🏃 長距離耐力跑 (LSD)</div><div class="plan-day-desc"><strong>11 km @ 6:40-6:55/km (HR 150-156)</strong> 均速巡航。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 2 週 (10/12 - 10/18) ｜ 400M操場間歇與快肌激活 ｜ 週跑量約 25 km</span><span class="tag">速度累積</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (10/12)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">常規推拉課表。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (10/13)</div><div class="plan-day-activity">🏃 400M 操場速度間歇</div><div class="plan-day-desc">熱身 2k + <strong>400m x 8趟 @ 110-112秒 (配速 4:35-4:40/km, 步頻 175+)，每趟慢跑休 90秒</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (10/14)</div><div class="plan-day-activity">🏋️ 下肢肌力</div><div class="plan-day-desc">深蹲 4x6、北歐彎舉、負重脛前肌勾腳。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (10/15)</div><div class="plan-day-activity">🏃 輕鬆有氧跑</div><div class="plan-day-desc"><strong>6 km @ 7:00/km (HR 145)</strong> + 4趟 60米輕快步。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (10/16)</div><div class="plan-day-activity">🏋️ 上肢背核心</div><div class="plan-day-desc">軀幹抗側傾強化。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (10/17)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">放鬆足底筋膜與阿基里斯腱。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (10/18)</div><div class="plan-day-activity">🏃 長跑進階 (12K)</div><div class="plan-day-desc"><strong>12 km @ 6:45-7:00/km (HR 150-155)</strong>，鞏固後段耐力。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 3 週 (10/19 - 10/25) ｜ 10K 比賽配速巡航 (5K Tempo) ｜ 週跑量約 27 km</span><span class="tag">專項耐力</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (10/19)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">維持推拉節奏。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (10/20)</div><div class="plan-day-activity">🏃 質量跑：5K 節奏跑</div><div class="plan-day-desc">熱身 1.5k + <strong>5 km 鎖定 @ 5:35-5:40/km (HR 166-170)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (10/21)</div><div class="plan-day-activity">🏋️ 下肢肌力</div><div class="plan-day-desc">六角槓硬舉、負重登階。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (10/22)</div><div class="plan-day-activity">🏃 輕鬆跑</div><div class="plan-day-desc"><strong>6.5 km @ 7:05/km (HR 145)</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (10/23)</div><div class="plan-day-activity">🏋️ 全身中度肌力</div><div class="plan-day-desc">維持神經張力。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (10/24)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">充足碳水。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (10/25)</div><div class="plan-day-activity">🏃 長跑新里程 (13.5K)</div><div class="plan-day-desc"><strong>13.5 km @ 6:50/km</strong> (半馬基底奠定)。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 4 週 (10/26 - 11/01) ｜ 同化吸收週 (Deload Week) ｜ 週跑量約 19 km</span><span class="tag">超量補償</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (10/26)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">組數減 20%，維持重量。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (10/27)</div><div class="plan-day-activity">🏃 1000m 巡航間歇</div><div class="plan-day-desc">熱身 1.5k + <strong>1000m x 4組 @ 5:25/km (休 2分)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (10/28)</div><div class="plan-day-activity">🏋️ 徒手/輕量腿部</div><div class="plan-day-desc">不產生延遲性酸痛。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (10/29)</div><div class="plan-day-activity">🏃 輕鬆慢搖跑</div><div class="plan-day-desc"><strong>5 km @ 7:15/km</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (10/30)</div><div class="plan-day-activity">🏋️ 上肢維護</div><div class="plan-day-desc">關節靈活性訓練。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (10/31)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">筋膜球放鬆足弓。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (11/01)</div><div class="plan-day-activity">🏃 舒適長距離</div><div class="plan-day-desc"><strong>9 km @ 6:35/km</strong>，感受雙腿彈性。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 5 週 (11/02 - 11/08) ｜ 賽前巔峰配速模擬 (Peak Test) ｜ 週跑量約 23 km</span><span class="tag">比賽模擬</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (11/02)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">常規推拉課表。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (11/03)</div><div class="plan-day-activity">🏃 鹿港配速檢定跑</div><div class="plan-day-desc">熱身 1.5k + <strong>6 km 鎖定 @ 5:35-5:40/km (目標 Sub-56 檢定)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (11/04)</div><div class="plan-day-activity">🏋️ 輕量下肢激活</div><div class="plan-day-desc">壺鈴擺盪、臀推，避免大重量深蹲。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (11/05)</div><div class="plan-day-activity">🏃 輕鬆跑</div><div class="plan-day-desc"><strong>5 km @ 7:00/km</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (11/06)</div><div class="plan-day-activity">🏋️ 核心上肢</div><div class="plan-day-desc">適度運動出汗。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (11/07)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">高碳水化合物補充。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (11/08)</div><div class="plan-day-activity">🏃 賽前控制長跑</div><div class="plan-day-desc"><strong>8 km @ 6:40/km</strong> (保留肌力與神經充沛度)。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week" style="border-color:var(--accent-rose);">
+                    <div class="plan-week-header" style="background:rgba(244, 63, 94, 0.15);">
+                        <span class="plan-week-title" style="color:var(--accent-rose);">第 6 週 (11/09 - 11/15) ｜ 鹿港馬拉松 10K 賽前減量與出賽週！🏁</span>
+                        <span class="tag target">11/15 鹿港 10K</span>
+                    </div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (11/09)</div><div class="plan-day-activity">🏋️ 上肢輕度活動</div><div class="plan-day-desc">強度降至 50%，活動關節即可。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (11/10)</div><div class="plan-day-activity">🏃 神經快步喚醒</div><div class="plan-day-desc">慢跑 3k + <strong>400m 快步 x 3組 @ 5:15/km (步頻 176+)</strong> + 慢走 1k。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週三 (11/11)</div><div class="plan-day-activity">🧘 下肢全面停練！</div><div class="plan-day-desc"><strong>【賽前禁區】</strong> 取消下肢重訓，使肌纖維完全修復無水腫。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (11/12)</div><div class="plan-day-activity">🏃 賽前超慢跑</div><div class="plan-day-desc"><strong>3.5 km @ 7:15/km</strong>，純排酸與放鬆。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週五 (11/13)</div><div class="plan-day-activity">🧘 全休補醣</div><div class="plan-day-desc">增加白飯、地瓜與電解質水分。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (11/14)</div><div class="plan-day-activity">🎽 賽前試跑與早睡</div><div class="plan-day-desc">慢跑 1.5 km + 2趟 50米加速步。21:30 入眠。</div></div>
+                        <div class="plan-day-card run-day" style="border:2px solid var(--accent-rose); background:rgba(244,63,94,0.1);">
+                            <div class="plan-day-name" style="color:var(--accent-rose);">週日 (11/15)</div>
+                            <div class="plan-day-activity">🔥 鹿港馬拉松 10K 正式出賽！</div>
+                            <div class="plan-day-desc"><strong>目標 5:35~5:40/km 均速，強勢挑戰 Sub-56 嶄新個人紀錄 (PB)！</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Phase 2: 台北21K (W7 - W11) -->
+                <h3 style="color:var(--accent-emerald); margin:24px 0 12px 0; font-size:17px;">🚩 第二階段：台北半馬 21K 耐力延伸與高峰期 (第 7 ~ 11 週)</h3>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 7 週 (11/16 - 11/22) ｜ 賽後排酸與耐力重啟 ｜ 週跑量 21 km</span><span class="tag">轉換期</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週一 (11/16)</div><div class="plan-day-activity">🧘 賽後全休</div><div class="plan-day-desc">熱水浴、拉筋泡腳。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (11/17)</div><div class="plan-day-activity">🏃 賽後排酸跑</div><div class="plan-day-desc"><strong>4.5 km @ 7:20/km</strong> 輕鬆慢搖。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (11/18)</div><div class="plan-day-activity">🏋️ 力量回歸</div><div class="plan-day-desc">中等重量深蹲與臥推。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (11/19)</div><div class="plan-day-activity">🏃 有氧輕鬆跑</div><div class="plan-day-desc"><strong>6 km @ 7:00/km</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (11/20)</div><div class="plan-day-activity">🏋️ 核心背肌</div><div class="plan-day-desc">抗扭轉力量強化。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (11/21)</div><div class="plan-day-activity">🧘 休息日</div><div class="plan-day-desc">充足睡眠。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (11/22)</div><div class="plan-day-activity">🏃 長跑基底</div><div class="plan-day-desc"><strong>11 km @ 6:50/km (HR 150)</strong>。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 8 週 (11/23 - 11/29) ｜ 半馬長距離進階里程碑 (15K) ｜ 週跑量約 28 km</span><span class="tag">距離推進</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (11/23)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">常規推拉。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (11/24)</div><div class="plan-day-activity">🏃 2000m 長間歇 x 3</div><div class="plan-day-desc">熱身 1.5k + <strong>2000m x 3組 @ 5:50/km (休 2分半)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (11/25)</div><div class="plan-day-activity">🏋️ 下肢肌力</div><div class="plan-day-desc">分腿蹲、臀腿後側鏈。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (11/26)</div><div class="plan-day-activity">🏃 輕鬆跑</div><div class="plan-day-desc"><strong>6.5 km @ 7:00/km</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (11/27)</div><div class="plan-day-activity">🏋️ 上肢核心</div><div class="plan-day-desc">中度重量循環。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (11/28)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">儲備肝醣。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (11/29)</div><div class="plan-day-activity">🏃 長距離突破 (15K)</div><div class="plan-day-desc"><strong>15 km @ 6:50-7:00/km</strong>，練習第 7K 進行能量膠補給。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 9 週 (11/30 - 12/06) ｜ 台北半馬全期最高峰 (Peak LSD 18K) ｜ 週跑量約 32 km</span><span class="tag" style="background:rgba(245,158,11,0.2);color:#fbbf24;">全期最高峰</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (11/30)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">常規推拉課表。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (12/01)</div><div class="plan-day-activity">🏃 質量跑：半馬節奏跑</div><div class="plan-day-desc">熱身 1.5k + <strong>7 km 半馬配速巡航 @ 6:20/km (HR 158-162)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (12/02)</div><div class="plan-day-activity">🏋️ 下肢低容量維護</div><div class="plan-day-desc">負重次數減半，保持神經募集。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (12/03)</div><div class="plan-day-activity">🏃 恢復輕鬆跑</div><div class="plan-day-desc"><strong>6 km @ 7:15/km</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (12/04)</div><div class="plan-day-activity">🏋️ 全身輕度肌耐力</div><div class="plan-day-desc">完全避免腿部發炎 DOMS。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (12/05)</div><div class="plan-day-activity">🧘 全休補醣</div><div class="plan-day-desc">模擬比賽前一日補水。</div></div>
+                        <div class="plan-day-card run-day" style="border:2px solid var(--accent-amber);">
+                            <div class="plan-day-name" style="color:var(--accent-amber);">週日 (12/06)</div>
+                            <div class="plan-day-activity">🏃 巔峰長距離 LSD (18 km)</div>
+                            <div class="plan-day-desc"><strong>17-18 km @ 6:50-7:05/km (HR ~150-155)</strong>。帶 2包能量膠 (8K, 14K)。攻克此關即可 100% 確保台北半馬破 Sub-2:15！</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="plan-week">
+                    <div class="plan-week-header"><span class="plan-week-title">第 10 週 (12/07 - 12/13) ｜ 賽前兩週減量 (Taper Phase 1) ｜ 週跑量約 22 km</span><span class="tag">減量恢復</span></div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (12/07)</div><div class="plan-day-activity">🏋️ 上肢力量</div><div class="plan-day-desc">組數減少 30%。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (12/08)</div><div class="plan-day-activity">🏃 速度刺激跑</div><div class="plan-day-desc">熱身 1.5k + <strong>1000m x 3組 @ 5:35/km (休 2分)</strong> + 緩和 1k。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週三 (12/09)</div><div class="plan-day-activity">🏋️ 徒手/彈力帶下肢</div><div class="plan-day-desc">停止槓鈴深蹲，專注臀肌激活。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (12/10)</div><div class="plan-day-activity">🏃 輕鬆跑</div><div class="plan-day-desc"><strong>5 km @ 7:10/km</strong>。</div></div>
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週五 (12/11)</div><div class="plan-day-activity">🏋️ 輕量上肢</div><div class="plan-day-desc">維持活動度。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (12/12)</div><div class="plan-day-activity">🧘 完全休息</div><div class="plan-day-desc">放鬆小腿阿基里斯腱。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週日 (12/13)</div><div class="plan-day-activity">🏃 減量長跑 (12 km)</div><div class="plan-day-desc"><strong>12 km @ 6:40/km</strong>，雙腿輕盈回彈。</div></div>
+                    </div>
+                </div>
+
+                <div class="plan-week" style="border-color:var(--accent-rose);">
+                    <div class="plan-week-header" style="background:rgba(244, 63, 94, 0.15);">
+                        <span class="plan-week-title" style="color:var(--accent-rose);">第 11 週 (12/14 - 12/20) ｜ 台北馬拉松 21K 決戰週！榮耀完賽！🏅</span>
+                        <span class="tag target">12/20 台北 21K</span>
+                    </div>
+                    <div class="plan-days-grid">
+                        <div class="plan-day-card lift-day"><div class="plan-day-name">週一 (12/14)</div><div class="plan-day-activity">🏋️ 輕度上肢活動</div><div class="plan-day-desc">30分鐘微出汗無疲勞感。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週二 (12/15)</div><div class="plan-day-activity">🏃 賽道步頻喚醒</div><div class="plan-day-desc">慢跑 3k + <strong>400m 快步 x 2組 @ 5:50/km (步頻 175+)</strong> + 慢走 1k。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週三 (12/16)</div><div class="plan-day-activity">🧘 腿部全面停練！</div><div class="plan-day-desc"><strong>【賽前禁區】</strong> 本週完全禁止下肢負重訓練。</div></div>
+                        <div class="plan-day-card run-day"><div class="plan-day-name">週四 (12/17)</div><div class="plan-day-activity">🏃 賽前試跑慢搖</div><div class="plan-day-desc"><strong>3 km @ 7:15/km</strong>，確認跑鞋與襪子狀態。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週五 (12/18)</div><div class="plan-day-activity">🧘 肝醣超補日</div><div class="plan-day-desc">高碳水低脂飲食（白飯、馬鈴薯、貝果、充足電解質水）。</div></div>
+                        <div class="plan-day-card rest-day"><div class="plan-day-name">週六 (12/19)</div><div class="plan-day-activity">🎽 裝備定裝與提早入眠</div><div class="plan-day-desc">檢查號碼布、晶片、能量膠 (3-4包)、鹽糖。21:30 就寢！</div></div>
+                        <div class="plan-day-card run-day" style="border:2px solid var(--accent-rose); background:rgba(244,63,94,0.1);">
+                            <div class="plan-day-name" style="color:var(--accent-rose);">週日 (12/20)</div>
+                            <div class="plan-day-activity">🏆 台北馬拉松 21K 正式出賽！</div>
+                            <div class="plan-day-desc"><strong>目標 Sub-2:15 (配速 6:23/km)！前 10K 沉住氣，後 11K 靠強悍肌力穩定推進，榮耀掛牌！</strong></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Tab 5: 重訓與防護指南 -->
+        <div id="tab-strength" class="tab-content">
+            <div class="dashboard-section">
+                <div class="section-header">
+                    <h2 class="section-title">🏋️ 健身與跑步雙修：肌力課表防干擾矩陣與關鍵動作</h2>
+                    <p class="section-desc">如何在維持 5 年健身肌肉量的同時，將力量完美轉化為強大跑步推進力與防傷護甲</p>
+                </div>
+
+                <div class="grid-2">
+                    <div style="background:#111827; padding:20px; border-radius:var(--radius-md); border:1px solid var(--border);">
+                        <h3 style="color:var(--accent-blue); font-size:16px; margin-bottom:12px;">🛡️ 跑者專屬下肢四大黃金動作 (取代高力竭腿推)</h3>
+                        <ol style="padding-left:20px; font-size:14px; line-height:1.8; color:var(--text-secondary);">
+                            <li><strong style="color:var(--text-primary);">保加利亞單腿分腿蹲 (Bulgarian Split Squat)：</strong> 強化單腳支撐平衡，消除左右腿力量不對稱，精準刺激臀中肌，防止膝外翻。</li>
+                            <li><strong style="color:var(--text-primary);">單腿羅馬尼亞硬舉 (Single-Leg RDL)：</strong> 打造強大膕繩肌與臀大肌抗離心伸展力，有效預防跑步拉傷，提升蹬地推進效率。</li>
+                            <li><strong style="color:var(--text-primary);">站姿負重提踵 + 負重脛前肌勾腳 (Calf & Tibialis Raises)：</strong> 77kg 跑者小腿阿基里斯腱與脛骨前的天然避震器，強化腳踝剛性。</li>
+                            <li><strong style="color:var(--text-primary);">帕洛夫推舉 (Pallof Press) & 側棒式抬腿：</strong> 強化跑步時骨盆與腰椎抗側傾、抗旋轉能力，避免長跑後段軀幹搖晃浪費體能。</li>
+                        </ol>
+                    </div>
+
+                    <div style="background:#111827; padding:20px; border-radius:var(--radius-md); border:1px solid var(--border);">
+                        <h3 style="color:var(--accent-amber); font-size:16px; margin-bottom:12px;">🚫 健美/肌肥大跑者的三大禁忌</h3>
+                        <ul style="padding-left:20px; font-size:14px; line-height:1.8; color:var(--text-secondary);">
+                            <li><strong style="color:var(--text-primary);">禁忌 1：長跑前一天做大重量力竭深蹲。</strong> 週六若做深蹲/腿推，週日長跑時股四頭肌的微撕裂會導致關節吸震力下降 40% 以上，是髕骨肌腱炎的主因！</li>
+                            <li><strong style="color:var(--text-primary);">禁忌 2：追求極致泵感與過度力竭 (Failure)。</strong> 在備賽期，深蹲與硬舉請保持 RPE 7-8（保留 2-3 下反覆），著重在神經衝動傳導而非肌肉發炎破壞。</li>
+                            <li><strong style="color:var(--text-primary);">禁忌 3：忽視腳踝背屈活動度與足底筋膜放鬆。</strong> 健身重度使用者因常穿硬底鞋，腳踝背屈活動度普遍受限。每次跑後務必使用網球滾動足弓 3-5 分鐘。</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="callout" style="margin-top:20px;">
+                    <strong>週排程完美節奏法則：</strong><br>
+                    • <strong>週一（上半身）</strong> ➔ <strong>週二（跑步質量課表）</strong>：腿部完全新鮮，能開出高質量速度！<br>
+                    • <strong>週三（下半身肌力）</strong> ➔ <strong>週四（輕鬆排酸跑）</strong>：深蹲後隔天透過低心率慢跑促進下肢血液循環，反而能大幅減輕 DOMS！<br>
+                    • <strong>週五（全身/背部）</strong> ➔ <strong>週六（完全休息）</strong> ➔ <strong>週日（長距離 LSD）</strong>：以最充沛體力迎戰每週最重要的長距離耐力課表！
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scripts for Tab Switching and Canvas Charts -->
+    <script>
+        function switchTab(e, tabId) {
+            document.querySelectorAll(".tab-content").forEach(function(el) { el.classList.remove("active"); });
+            document.querySelectorAll(".tab-btn").forEach(function(el) { el.classList.remove("active"); });
+            document.getElementById(tabId).classList.add("active");
+            e.currentTarget.classList.add("active");
+        }
+
+        window.addEventListener("load", function() {
+            const rawData = [{"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/4538510835415225832", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 10.057445, "dur_s": 3907.0, "dur_min": 65.11666666666666, "pace_s": 388.4684430290198, "hr": 161, "steps": 10543, "cadence": 161.9093933964679, "stride_m": 1.043, "cal": 924, "splits": [{"startTime": "2026-09-06T01:52:35Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T01:59:05.637368564Z", "endUtcOffset": "28800s", "activeDuration": "390.637368564s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.390637368564}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T01:59:05.637368564Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:05:38.618744190Z", "endUtcOffset": "28800s", "activeDuration": "392.981375626s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.392981375626}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:05:38.618744190Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:12:02.210368649Z", "endUtcOffset": "28800s", "activeDuration": "383.591624459s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.383591624459}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:12:02.210368649Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:18:20.978137609Z", "endUtcOffset": "28800s", "activeDuration": "378.767768960s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.37876776896000003}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:18:20.978137609Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:24:29.611457346Z", "endUtcOffset": "28800s", "activeDuration": "368.633319737s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.36863331973700003}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:24:29.611457346Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:31:13.501630550Z", "endUtcOffset": "28800s", "activeDuration": "403.890173204s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.403890173204}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:31:13.501630550Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:37:27.390969336Z", "endUtcOffset": "28800s", "activeDuration": "373.889338786s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.373889338786}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:37:27.390969336Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:43:39.023759363Z", "endUtcOffset": "28800s", "activeDuration": "371.632790027s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.371632790027}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:43:39.023759363Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:49:52.296419180Z", "endUtcOffset": "28800s", "activeDuration": "373.272659817s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.373272659817}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:49:52.296419180Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:56:17.012412283Z", "endUtcOffset": "28800s", "activeDuration": "384.715993103s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.38471599310300003}, "splitType": "DISTANCE"}, {"startTime": "2026-09-06T02:56:17.012412283Z", "startUtcOffset": "28800s", "endTime": "2026-09-06T02:57:23Z", "endUtcOffset": "28800s", "activeDuration": "65.987587717s", "metricsSummary": {"distanceMillimeters": 57445, "averagePaceSecondsPerMeter": 1.148708986282531}, "splitType": "DISTANCE"}], "date_str": "2026-09-06", "day_str": "Sun", "time_str": "09:52", "dt_iso": "2026-09-06T09:52:35+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/6110698098327577280", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 5.100992, "dur_s": 2127.0, "dur_min": 35.45, "pace_s": 416.97771727538486, "hr": 150, "steps": 5605, "cadence": 158.11001410437234, "stride_m": 0.93, "cal": 470, "splits": [{"startTime": "2026-09-08T10:35:00Z", "startUtcOffset": "28800s", "endTime": "2026-09-08T10:41:42.171300842Z", "endUtcOffset": "28800s", "activeDuration": "402.171300842s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.402171300842}, "splitType": "DISTANCE"}, {"startTime": "2026-09-08T10:41:42.171300842Z", "startUtcOffset": "28800s", "endTime": "2026-09-08T10:48:42.923622940Z", "endUtcOffset": "28800s", "activeDuration": "420.752322098s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.42075232209799995}, "splitType": "DISTANCE"}, {"startTime": "2026-09-08T10:48:42.923622940Z", "startUtcOffset": "28800s", "endTime": "2026-09-08T10:55:30.139206981Z", "endUtcOffset": "28800s", "activeDuration": "407.215584041s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.407215584041}, "splitType": "DISTANCE"}, {"startTime": "2026-09-08T10:55:30.139206981Z", "startUtcOffset": "28800s", "endTime": "2026-09-08T11:02:23.449243463Z", "endUtcOffset": "28800s", "activeDuration": "413.310036482s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.413310036482}, "splitType": "DISTANCE"}, {"startTime": "2026-09-08T11:02:23.449243463Z", "startUtcOffset": "28800s", "endTime": "2026-09-08T11:09:15.664561600Z", "endUtcOffset": "28800s", "activeDuration": "412.215318137s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.412215318137}, "splitType": "DISTANCE"}, {"startTime": "2026-09-08T11:09:15.664561600Z", "startUtcOffset": "28800s", "endTime": "2026-09-08T11:10:21Z", "endUtcOffset": "28800s", "activeDuration": "65.335438400s", "metricsSummary": {"distanceMillimeters": 100992, "averagePaceSecondsPerMeter": 0.6469367712294043}, "splitType": "DISTANCE"}], "date_str": "2026-09-08", "day_str": "Tue", "time_str": "18:34", "dt_iso": "2026-09-08T18:34:55+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/783667457041180928", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 5.184508, "dur_s": 2082.0, "dur_min": 34.7, "pace_s": 401.5810179095104, "hr": 151, "steps": 5561, "cadence": 160.2593659942363, "stride_m": 0.951, "cal": 471, "splits": [{"startTime": "2026-09-10T09:36:32Z", "startUtcOffset": "28800s", "endTime": "2026-09-10T09:43:04.159199168Z", "endUtcOffset": "28800s", "activeDuration": "392.159199168s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.39215919916799996}, "splitType": "DISTANCE"}, {"startTime": "2026-09-10T09:43:04.159199168Z", "startUtcOffset": "28800s", "endTime": "2026-09-10T09:49:48.407502216Z", "endUtcOffset": "28800s", "activeDuration": "404.248303048s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.404248303048}, "splitType": "DISTANCE"}, {"startTime": "2026-09-10T09:49:48.407502216Z", "startUtcOffset": "28800s", "endTime": "2026-09-10T09:56:23.498595026Z", "endUtcOffset": "28800s", "activeDuration": "395.091092810s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.39509109281000004}, "splitType": "DISTANCE"}, {"startTime": "2026-09-10T09:56:23.498595026Z", "startUtcOffset": "28800s", "endTime": "2026-09-10T10:02:57.091962284Z", "endUtcOffset": "28800s", "activeDuration": "393.593367258s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.393593367258}, "splitType": "DISTANCE"}, {"startTime": "2026-09-10T10:02:57.091962284Z", "startUtcOffset": "28800s", "endTime": "2026-09-10T10:09:29.306099548Z", "endUtcOffset": "28800s", "activeDuration": "392.214137264s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.392214137264}, "splitType": "DISTANCE"}, {"startTime": "2026-09-10T10:09:29.306099548Z", "startUtcOffset": "28800s", "endTime": "2026-09-10T10:11:02Z", "endUtcOffset": "28800s", "activeDuration": "92.693900452s", "metricsSummary": {"distanceMillimeters": 184508, "averagePaceSecondsPerMeter": 0.5023841809135646}, "splitType": "DISTANCE"}], "date_str": "2026-09-10", "day_str": "Thu", "time_str": "17:36", "dt_iso": "2026-09-10T17:36:21+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/270620054415705544", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 6.436484, "dur_s": 3455.0, "dur_min": 57.583333333333336, "pace_s": 536.7837471513951, "hr": 159, "steps": 7178, "cadence": 124.65412445730824, "stride_m": 0.975, "cal": 772, "splits": [{"startTime": "2026-09-13T01:33:32Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T01:39:54.778460234Z", "endUtcOffset": "28800s", "activeDuration": "382.778460234s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.38277846023400003}, "splitType": "DISTANCE"}, {"startTime": "2026-09-13T01:39:54.778460234Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T01:46:13.335826737Z", "endUtcOffset": "28800s", "activeDuration": "378.557366503s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.37855736650300004}, "splitType": "DISTANCE"}, {"startTime": "2026-09-13T01:46:13.335826737Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T01:52:28.649251004Z", "endUtcOffset": "28800s", "activeDuration": "375.313424267s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.37531342426700004}, "splitType": "DISTANCE"}, {"startTime": "2026-09-13T01:52:28.649251004Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T01:58:53.343128898Z", "endUtcOffset": "28800s", "activeDuration": "384.693877894s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.384693877894}, "splitType": "DISTANCE"}, {"startTime": "2026-09-13T01:58:53.343128898Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T02:09:29.717648928Z", "endUtcOffset": "28800s", "activeDuration": "636.374520030s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.63637452003}, "splitType": "DISTANCE"}, {"startTime": "2026-09-13T02:09:29.717648928Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T02:16:13.677839972Z", "endUtcOffset": "28800s", "activeDuration": "403.960191044s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.403960191044}, "splitType": "DISTANCE"}, {"startTime": "2026-09-13T02:16:13.677839972Z", "startUtcOffset": "28800s", "endTime": "2026-09-13T02:19:10Z", "endUtcOffset": "28800s", "activeDuration": "176.322160027s", "metricsSummary": {"distanceMillimeters": 436484, "averagePaceSecondsPerMeter": 0.40396019104251246}, "splitType": "DISTANCE"}], "date_str": "2026-09-13", "day_str": "Sun", "time_str": "09:21", "dt_iso": "2026-09-13T09:21:36+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/4125179344348837256", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 4.770015, "dur_s": 2312.0, "dur_min": 38.53333333333333, "pace_s": 484.6944925749709, "hr": 122, "steps": 4893, "cadence": 126.98096885813149, "stride_m": 1.074, "cal": 378, "splits": [{"startTime": "2026-09-15T11:55:52Z", "startUtcOffset": "28800s", "endTime": "2026-09-15T12:24:07.223297080Z", "endUtcOffset": "28800s", "activeDuration": "1695.223297080s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 1.69522329708}, "splitType": "DISTANCE"}, {"startTime": "2026-09-15T12:24:07.223297080Z", "startUtcOffset": "28800s", "endTime": "2026-09-15T12:26:01.487219881Z", "endUtcOffset": "28800s", "activeDuration": "114.263922801s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.114263922801}, "splitType": "DISTANCE"}, {"startTime": "2026-09-15T12:26:01.487219881Z", "startUtcOffset": "28800s", "endTime": "2026-09-15T12:27:55.751142682Z", "endUtcOffset": "28800s", "activeDuration": "114.263922801s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.114263922801}, "splitType": "DISTANCE"}, {"startTime": "2026-09-15T12:27:55.751142682Z", "startUtcOffset": "28800s", "endTime": "2026-09-15T12:29:50.015065483Z", "endUtcOffset": "28800s", "activeDuration": "114.263922801s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.114263922801}, "splitType": "DISTANCE"}, {"startTime": "2026-09-15T12:29:50.015065483Z", "startUtcOffset": "28800s", "endTime": "2026-09-15T12:31:18Z", "endUtcOffset": "28800s", "activeDuration": "87.984934515s", "metricsSummary": {"distanceMillimeters": 770015, "averagePaceSecondsPerMeter": 0.1142639228002052}, "splitType": "DISTANCE"}], "date_str": "2026-09-15", "day_str": "Tue", "time_str": "19:52", "dt_iso": "2026-09-15T19:52:47+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/6979603404822554576", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 8.838484, "dur_s": 3610.0, "dur_min": 60.166666666666664, "pace_s": 408.4410855979374, "hr": 154, "steps": 8784, "cadence": 145.99445983379502, "stride_m": 1.074, "cal": 797, "splits": [], "date_str": "2026-09-16", "day_str": "Wed", "time_str": "17:43", "dt_iso": "2026-09-16T17:43:48+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/4556000611222636800", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 6.027828, "dur_s": 2338.0, "dur_min": 38.96666666666667, "pace_s": 387.8677361066042, "hr": 157, "steps": 6189, "cadence": 158.82805816937554, "stride_m": 0.99, "cal": 534, "splits": [{"startTime": "2026-09-18T10:35:15Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T10:41:46.112684419Z", "endUtcOffset": "28800s", "activeDuration": "391.112684419s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.391112684419}, "splitType": "DISTANCE"}, {"startTime": "2026-09-18T10:41:46.112684419Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T10:48:25.437872544Z", "endUtcOffset": "28800s", "activeDuration": "399.325188125s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.399325188125}, "splitType": "DISTANCE"}, {"startTime": "2026-09-18T10:48:25.437872544Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T10:55:01.201899757Z", "endUtcOffset": "28800s", "activeDuration": "395.764027213s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.395764027213}, "splitType": "DISTANCE"}, {"startTime": "2026-09-18T10:55:01.201899757Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T11:01:14.085267391Z", "endUtcOffset": "28800s", "activeDuration": "372.883367634s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.37288336763400004}, "splitType": "DISTANCE"}, {"startTime": "2026-09-18T11:01:14.085267391Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T11:07:25.931904075Z", "endUtcOffset": "28800s", "activeDuration": "368.846636684s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.368846636684}, "splitType": "DISTANCE"}, {"startTime": "2026-09-18T11:07:25.931904075Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T11:13:25.318514520Z", "endUtcOffset": "28800s", "activeDuration": "359.386610445s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.359386610445}, "splitType": "DISTANCE"}, {"startTime": "2026-09-18T11:13:25.318514520Z", "startUtcOffset": "28800s", "endTime": "2026-09-18T11:14:13Z", "endUtcOffset": "28800s", "activeDuration": "47.681485480s", "metricsSummary": {"distanceMillimeters": 27828, "averagePaceSecondsPerMeter": 1.7134355857409802}, "splitType": "DISTANCE"}], "date_str": "2026-09-18", "day_str": "Fri", "time_str": "18:35", "dt_iso": "2026-09-18T18:35:14+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/4896194312552492256", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 10.066149, "dur_s": 4091.0, "dur_min": 68.18333333333334, "pace_s": 406.41162772377004, "hr": 152, "steps": 10670, "cadence": 156.48985578098262, "stride_m": 1.04, "cal": 905, "splits": [{"startTime": "2026-09-20T14:16:13Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T14:22:26.944537715Z", "endUtcOffset": "28800s", "activeDuration": "373.944537715s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.373944537715}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T14:22:26.944537715Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T14:29:14.822022647Z", "endUtcOffset": "28800s", "activeDuration": "407.877484932s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.407877484932}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T14:29:14.822022647Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T14:35:50.036798844Z", "endUtcOffset": "28800s", "activeDuration": "395.214776197s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.395214776197}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T14:35:50.036798844Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T14:42:27.368408719Z", "endUtcOffset": "28800s", "activeDuration": "397.331609875s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.39733160987500005}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T14:42:27.368408719Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T14:49:11.153338796Z", "endUtcOffset": "28800s", "activeDuration": "403.784930077s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.403784930077}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T14:49:11.153338796Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T14:55:42.991922957Z", "endUtcOffset": "28800s", "activeDuration": "391.838584161s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.391838584161}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T14:55:42.991922957Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T15:02:18.171123855Z", "endUtcOffset": "28800s", "activeDuration": "395.179200898s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.39517920089799996}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T15:02:18.171123855Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T15:09:03.069761087Z", "endUtcOffset": "28800s", "activeDuration": "404.898637232s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.404898637232}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T15:09:03.069761087Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T15:15:52.483429559Z", "endUtcOffset": "28800s", "activeDuration": "409.413668472s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.409413668472}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T15:15:52.483429559Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T15:20:48.423837926Z", "endUtcOffset": "28800s", "activeDuration": "295.940408367s", "metricsSummary": {"distanceMillimeters": 1000000, "averagePaceSecondsPerMeter": 0.295940408367}, "splitType": "DISTANCE"}, {"startTime": "2026-09-20T15:20:48.423837926Z", "startUtcOffset": "28800s", "endTime": "2026-09-20T15:21:08Z", "endUtcOffset": "28800s", "activeDuration": "19.576162073s", "metricsSummary": {"distanceMillimeters": 66149, "averagePaceSecondsPerMeter": 0.2959404083659617}, "splitType": "DISTANCE"}], "date_str": "2026-09-20", "day_str": "Sun", "time_str": "22:12", "dt_iso": "2026-09-20T22:12:58+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/2600816145994256584", "disp_name": "\u8dd1\u6b65\u6a5f\u8dd1\u6b65", "type": "TREADMILL", "dist_km": 6.0, "dur_s": 2707.0, "dur_min": 45.11666666666667, "pace_s": 451.1666666666667, "hr": 142, "steps": 7333, "cadence": 162.53417066863688, "stride_m": null, "cal": 569, "splits": [], "date_str": "2026-09-23", "day_str": "Wed", "time_str": "12:01", "dt_iso": "2026-09-23T12:01:56+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/5820120523793296376", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 5.500907, "dur_s": 2081.0, "dur_min": 34.68333333333333, "pace_s": 378.3012510482362, "hr": 159, "steps": 5496, "cadence": 158.46227775108122, "stride_m": 1.025, "cal": 484, "splits": [{"startTime": "2026-09-25T05:08:29Z", "startUtcOffset": "28800s", "endTime": "2026-09-25T05:14:59Z", "endUtcOffset": "28800s", "activeDuration": "386.576s", "metricsSummary": {"caloriesKcal": 73, "distanceMillimeters": 1001360, "steps": "1009", "averagePaceSecondsPerMeter": 0.38605097067987537, "averageHeartRateBeatsPerMinute": "146", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-25T05:14:59Z", "startUtcOffset": "28800s", "endTime": "2026-09-25T05:21:37Z", "endUtcOffset": "28800s", "activeDuration": "397.980s", "metricsSummary": {"caloriesKcal": 93, "distanceMillimeters": 1001242, "steps": "1045", "averagePaceSecondsPerMeter": 0.3974863219880908, "averageHeartRateBeatsPerMinute": "155", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-25T05:21:37Z", "startUtcOffset": "28800s", "endTime": "2026-09-25T05:28:07Z", "endUtcOffset": "28800s", "activeDuration": "389.900s", "metricsSummary": {"caloriesKcal": 97, "distanceMillimeters": 1001117, "steps": "1025", "averagePaceSecondsPerMeter": 0.389464967631156, "averageHeartRateBeatsPerMinute": "157", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-25T05:28:07Z", "startUtcOffset": "28800s", "endTime": "2026-09-25T05:34:15Z", "endUtcOffset": "28800s", "activeDuration": "368.660s", "metricsSummary": {"caloriesKcal": 87, "distanceMillimeters": 1001875, "steps": "979", "averagePaceSecondsPerMeter": 0.36797005614472866, "averageHeartRateBeatsPerMinute": "162", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-25T05:34:15Z", "startUtcOffset": "28800s", "endTime": "2026-09-25T05:40:17Z", "endUtcOffset": "28800s", "activeDuration": "361.600s", "metricsSummary": {"caloriesKcal": 88, "distanceMillimeters": 1000469, "steps": "967", "averagePaceSecondsPerMeter": 0.3614304891006118, "averageHeartRateBeatsPerMinute": "168", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}], "date_str": "2026-09-25", "day_str": "Fri", "time_str": "13:08", "dt_iso": "2026-09-25T13:08:29+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/8753771103068485224", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 10.170875, "dur_s": 3621.0, "dur_min": 60.35, "pace_s": 356.0165669128762, "hr": 168, "steps": 9539, "cadence": 158.0613090306545, "stride_m": 1.077, "cal": 906, "splits": [{"startTime": "2026-09-27T00:28:18Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T00:34:23Z", "endUtcOffset": "28800s", "activeDuration": "361.771s", "metricsSummary": {"caloriesKcal": 90, "distanceMillimeters": 1001774, "steps": "946", "averagePaceSecondsPerMeter": 0.36113035475067234, "averageHeartRateBeatsPerMinute": "153", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T00:34:23Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T00:40:25Z", "endUtcOffset": "28800s", "activeDuration": "362.610s", "metricsSummary": {"caloriesKcal": 86, "distanceMillimeters": 1001843, "steps": "954", "averagePaceSecondsPerMeter": 0.36194293916312237, "averageHeartRateBeatsPerMinute": "161", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T00:40:25Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T00:46:27Z", "endUtcOffset": "28800s", "activeDuration": "352.500s", "metricsSummary": {"caloriesKcal": 87, "distanceMillimeters": 1000532, "steps": "932", "averagePaceSecondsPerMeter": 0.3523125697129127, "averageHeartRateBeatsPerMinute": "163", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T00:46:27Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T00:52:21Z", "endUtcOffset": "28800s", "activeDuration": "354.530s", "metricsSummary": {"caloriesKcal": 89, "distanceMillimeters": 1000492, "steps": "933", "averagePaceSecondsPerMeter": 0.35435565701674776, "averageHeartRateBeatsPerMinute": "167", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T00:52:21Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T00:58:15Z", "endUtcOffset": "28800s", "activeDuration": "353.520s", "metricsSummary": {"caloriesKcal": 90, "distanceMillimeters": 1000351, "steps": "932", "averagePaceSecondsPerMeter": 0.3533959580187354, "averageHeartRateBeatsPerMinute": "169", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T00:58:15Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T01:04:07Z", "endUtcOffset": "28800s", "activeDuration": "353.520s", "metricsSummary": {"caloriesKcal": 93, "distanceMillimeters": 1000258, "steps": "935", "averagePaceSecondsPerMeter": 0.35342881536563564, "averageHeartRateBeatsPerMinute": "172", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T01:04:07Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T01:10:04Z", "endUtcOffset": "28800s", "activeDuration": "356.540s", "metricsSummary": {"caloriesKcal": 92, "distanceMillimeters": 1001547, "steps": "936", "averagePaceSecondsPerMeter": 0.35598928457675977, "averageHeartRateBeatsPerMinute": "173", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T01:10:04Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T01:17:01Z", "endUtcOffset": "28800s", "activeDuration": "354.168s", "metricsSummary": {"caloriesKcal": 92, "distanceMillimeters": 1001914, "steps": "943", "averagePaceSecondsPerMeter": 0.35349141742704465, "averageHeartRateBeatsPerMinute": "172", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T01:17:01Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T01:22:51Z", "endUtcOffset": "28800s", "activeDuration": "350.480s", "metricsSummary": {"caloriesKcal": 77, "distanceMillimeters": 1000711, "steps": "938", "averagePaceSecondsPerMeter": 0.35023098576911815, "averageHeartRateBeatsPerMinute": "174", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-27T01:22:51Z", "startUtcOffset": "28800s", "endTime": "2026-09-27T01:28:44Z", "endUtcOffset": "28800s", "activeDuration": "352.520s", "metricsSummary": {"caloriesKcal": 94, "distanceMillimeters": 1002648, "steps": "938", "averagePaceSecondsPerMeter": 0.3515889923482618, "averageHeartRateBeatsPerMinute": "176", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}], "date_str": "2026-09-27", "day_str": "Sun", "time_str": "08:28", "dt_iso": "2026-09-27T08:28:18+00:00"}, {"id": "2026-09-29-combined", "disp_name": "400M \u64cd\u5834\u9593\u6b47\u8a13\u7df4 (\u5408\u4f75)", "type": "RUNNING", "dist_km": 5.73, "dur_s": 2758.0, "dur_min": 46.0, "pace_s": 481.6, "hr": 170, "steps": 5698, "cadence": 124.0, "stride_m": 1.0, "cal": 681, "splits": [{"startTime": "2026-09-29T11:22:35Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:26:19Z", "endUtcOffset": "28800s", "activeDuration": "224.045s", "metricsSummary": {"caloriesKcal": 46, "distanceMillimeters": 401648, "steps": "397", "averagePaceSecondsPerMeter": 0.5578143050631398, "averageHeartRateBeatsPerMinute": "159", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:26:19Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:28:26Z", "endUtcOffset": "28800s", "activeDuration": "126.260s", "metricsSummary": {"caloriesKcal": 29, "distanceMillimeters": 401235, "steps": "326", "averagePaceSecondsPerMeter": 0.31467843034630577, "averageHeartRateBeatsPerMinute": "172", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:28:26Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:31:24Z", "endUtcOffset": "28800s", "activeDuration": "178.780s", "metricsSummary": {"caloriesKcal": 44, "distanceMillimeters": 403125, "steps": "404", "averagePaceSecondsPerMeter": 0.44348527131782944, "averageHeartRateBeatsPerMinute": "168", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:31:24Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:34:39Z", "endUtcOffset": "28800s", "activeDuration": "194.950s", "metricsSummary": {"caloriesKcal": 45, "distanceMillimeters": 403304, "steps": "401", "averagePaceSecondsPerMeter": 0.4833822625116537, "averageHeartRateBeatsPerMinute": "172", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:34:39Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:37:52Z", "endUtcOffset": "28800s", "activeDuration": "192.930s", "metricsSummary": {"caloriesKcal": 46, "distanceMillimeters": 403141, "steps": "416", "averagePaceSecondsPerMeter": 0.4785670522224234, "averageHeartRateBeatsPerMinute": "173", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:37:52Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:41:09Z", "endUtcOffset": "28800s", "activeDuration": "196.960s", "metricsSummary": {"caloriesKcal": 60, "distanceMillimeters": 402203, "steps": "413", "averagePaceSecondsPerMeter": 0.4897029609426086, "averageHeartRateBeatsPerMinute": "172", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:41:09Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:45:25Z", "endUtcOffset": "28800s", "activeDuration": "255.600s", "metricsSummary": {"caloriesKcal": 56, "distanceMillimeters": 400516, "steps": "395", "averagePaceSecondsPerMeter": 0.638176751989933, "averageHeartRateBeatsPerMinute": "164", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:45:25Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:48:42Z", "endUtcOffset": "28800s", "activeDuration": "196.990s", "metricsSummary": {"caloriesKcal": 46, "distanceMillimeters": 401445, "steps": "416", "averagePaceSecondsPerMeter": 0.49070233780468064, "averageHeartRateBeatsPerMinute": "172", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:48:42Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:51:48Z", "endUtcOffset": "28800s", "activeDuration": "187.880s", "metricsSummary": {"caloriesKcal": 60, "distanceMillimeters": 400609, "steps": "399", "averagePaceSecondsPerMeter": 0.468985968862407, "averageHeartRateBeatsPerMinute": "176", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:51:48Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:53:55Z", "endUtcOffset": "28800s", "activeDuration": "127.261s", "metricsSummary": {"caloriesKcal": 30, "distanceMillimeters": 401586, "steps": "344", "averagePaceSecondsPerMeter": 0.3168960073309328, "averageHeartRateBeatsPerMinute": "177", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:53:55Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T11:57:14Z", "endUtcOffset": "28800s", "activeDuration": "199.029s", "metricsSummary": {"caloriesKcal": 62, "distanceMillimeters": 401203, "steps": "397", "averagePaceSecondsPerMeter": 0.4960805377826188, "averageHeartRateBeatsPerMinute": "175", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T11:57:14Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T12:01:34Z", "endUtcOffset": "28800s", "activeDuration": "259.590s", "metricsSummary": {"caloriesKcal": 57, "distanceMillimeters": 400258, "steps": "492", "averagePaceSecondsPerMeter": 0.6485566809407931, "averageHeartRateBeatsPerMinute": "166", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T12:01:34Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T12:05:40Z", "endUtcOffset": "28800s", "activeDuration": "245.470s", "metricsSummary": {"caloriesKcal": 59, "distanceMillimeters": 400860, "steps": "468", "averagePaceSecondsPerMeter": 0.6123584293768398, "averageHeartRateBeatsPerMinute": "170", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-09-29T12:12:59Z", "startUtcOffset": "28800s", "endTime": "2026-09-29T12:14:39Z", "endUtcOffset": "28800s", "activeDuration": "98s", "metricsSummary": {"distanceMillimeters": 351539, "averagePaceSecondsPerMeter": 0.2787741900614157}, "splitType": "DISTANCE"}], "note": "400M \u64cd\u5834\u9593\u6b47\u8a13\u7df4\uff08\u542b\u6700\u5f8c\u4e00\u5708 350m \u885d\u523a @ 4:47/km\uff0c\u5fc3\u7387 178 bpm\uff09", "date_str": "2026-09-29", "day_str": "Tue", "time_str": "19:22", "dt_iso": "2026-09-29T19:22:35+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/5815026774412819768", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 8.144867, "dur_s": 3544.0, "dur_min": 59.06666666666667, "pace_s": 435.1206717064871, "hr": 144, "steps": 9554, "cadence": 161.7494356659142, "stride_m": 0.86, "cal": 737, "splits": [{"startTime": "2026-10-01T12:54:16Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:00:53Z", "endUtcOffset": "28800s", "activeDuration": "396.894s", "metricsSummary": {"caloriesKcal": 68, "distanceMillimeters": 1000055, "steps": "1081", "averagePaceSecondsPerMeter": 0.3968721720305384, "averageHeartRateBeatsPerMinute": "135", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:00:53Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:08:18Z", "endUtcOffset": "28800s", "activeDuration": "444.460s", "metricsSummary": {"caloriesKcal": 99, "distanceMillimeters": 1002179, "steps": "1219", "averagePaceSecondsPerMeter": 0.44349362738592607, "averageHeartRateBeatsPerMinute": "142", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:08:18Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:15:37Z", "endUtcOffset": "28800s", "activeDuration": "439.441s", "metricsSummary": {"caloriesKcal": 89, "distanceMillimeters": 1000117, "steps": "1194", "averagePaceSecondsPerMeter": 0.4393895914178041, "averageHeartRateBeatsPerMinute": "146", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:15:37Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:22:57Z", "endUtcOffset": "28800s", "activeDuration": "440.399s", "metricsSummary": {"caloriesKcal": 89, "distanceMillimeters": 1001391, "steps": "1191", "averagePaceSecondsPerMeter": 0.43978725592700557, "averageHeartRateBeatsPerMinute": "144", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:22:57Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:30:20Z", "endUtcOffset": "28800s", "activeDuration": "443.441s", "metricsSummary": {"caloriesKcal": 100, "distanceMillimeters": 1001633, "steps": "1194", "averagePaceSecondsPerMeter": 0.44271804143833116, "averageHeartRateBeatsPerMinute": "145", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:30:20Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:37:37Z", "endUtcOffset": "28800s", "activeDuration": "437.349s", "metricsSummary": {"caloriesKcal": 90, "distanceMillimeters": 1001101, "steps": "1164", "averagePaceSecondsPerMeter": 0.43686800832283657, "averageHeartRateBeatsPerMinute": "147", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:37:37Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:44:58Z", "endUtcOffset": "28800s", "activeDuration": "441.450s", "metricsSummary": {"caloriesKcal": 89, "distanceMillimeters": 1000625, "steps": "1173", "averagePaceSecondsPerMeter": 0.4411742660836977, "averageHeartRateBeatsPerMinute": "146", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-01T13:44:58Z", "startUtcOffset": "28800s", "endTime": "2026-10-01T13:52:19Z", "endUtcOffset": "28800s", "activeDuration": "441.410s", "metricsSummary": {"caloriesKcal": 101, "distanceMillimeters": 1001422, "steps": "1180", "averagePaceSecondsPerMeter": 0.4407832062806689, "averageHeartRateBeatsPerMinute": "144", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}], "date_str": "2026-10-01", "day_str": "Thu", "time_str": "20:54", "dt_iso": "2026-10-01T20:54:16+00:00"}, {"id": "users/3107249565631731480/dataTypes/exercise/dataPoints/7887457985541303816", "disp_name": "\u8dd1\u6b65", "type": "RUNNING", "dist_km": 11.977492, "dur_s": 5080.0, "dur_min": 84.66666666666667, "pace_s": 424.12885769408155, "hr": 150, "steps": 13477, "cadence": 159.1771653543307, "stride_m": 0.97, "cal": 1127, "splits": [{"startTime": "2026-10-04T10:06:34Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:13:31Z", "endUtcOffset": "28800s", "activeDuration": "416.345s", "metricsSummary": {"caloriesKcal": 79, "distanceMillimeters": 1001250, "steps": "1101", "averagePaceSecondsPerMeter": 0.4158252184769039, "averageHeartRateBeatsPerMinute": "140", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:13:31Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:20:48Z", "endUtcOffset": "28800s", "activeDuration": "438.390s", "metricsSummary": {"caloriesKcal": 88, "distanceMillimeters": 1000976, "steps": "1169", "averagePaceSecondsPerMeter": 0.43796254855261263, "averageHeartRateBeatsPerMinute": "146", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:20:48Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:27:59Z", "endUtcOffset": "28800s", "activeDuration": "430.300s", "metricsSummary": {"caloriesKcal": 87, "distanceMillimeters": 1000774, "steps": "1157", "averagePaceSecondsPerMeter": 0.42996720538303357, "averageHeartRateBeatsPerMinute": "144", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:27:59Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:35:12Z", "endUtcOffset": "28800s", "activeDuration": "432.310s", "metricsSummary": {"caloriesKcal": 100, "distanceMillimeters": 1000789, "steps": "1160", "averagePaceSecondsPerMeter": 0.43196917631988363, "averageHeartRateBeatsPerMinute": "146", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:35:12Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:43:38Z", "endUtcOffset": "28800s", "activeDuration": "429.712s", "metricsSummary": {"caloriesKcal": 89, "distanceMillimeters": 1000430, "steps": "1148", "averagePaceSecondsPerMeter": 0.42952730325959837, "averageHeartRateBeatsPerMinute": "148", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:43:38Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:50:35Z", "endUtcOffset": "28800s", "activeDuration": "417.180s", "metricsSummary": {"caloriesKcal": 92, "distanceMillimeters": 1002570, "steps": "1097", "averagePaceSecondsPerMeter": 0.416110595768874, "averageHeartRateBeatsPerMinute": "152", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:50:35Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T10:56:55Z", "endUtcOffset": "28800s", "activeDuration": "380.810s", "metricsSummary": {"caloriesKcal": 81, "distanceMillimeters": 1000500, "steps": "1015", "averagePaceSecondsPerMeter": 0.38061969015492253, "averageHeartRateBeatsPerMinute": "155", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T10:56:55Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T11:04:11Z", "endUtcOffset": "28800s", "activeDuration": "437.380s", "metricsSummary": {"caloriesKcal": 120, "distanceMillimeters": 1002180, "steps": "1162", "averagePaceSecondsPerMeter": 0.43642858568321063, "averageHeartRateBeatsPerMinute": "155", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T11:04:11Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T11:11:26Z", "endUtcOffset": "28800s", "activeDuration": "435.350s", "metricsSummary": {"caloriesKcal": 95, "distanceMillimeters": 1001594, "steps": "1159", "averagePaceSecondsPerMeter": 0.4346571564925509, "averageHeartRateBeatsPerMinute": "154", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T11:11:26Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T11:18:55Z", "endUtcOffset": "28800s", "activeDuration": "446.460s", "metricsSummary": {"caloriesKcal": 94, "distanceMillimeters": 1001132, "steps": "1175", "averagePaceSecondsPerMeter": 0.445955178737669, "averageHeartRateBeatsPerMinute": "154", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}, {"startTime": "2026-10-04T11:18:55Z", "startUtcOffset": "28800s", "endTime": "2026-10-04T11:26:06Z", "endUtcOffset": "28800s", "activeDuration": "431.290s", "metricsSummary": {"caloriesKcal": 108, "distanceMillimeters": 1000391, "steps": "1139", "averagePaceSecondsPerMeter": 0.4311214315202756, "averageHeartRateBeatsPerMinute": "155", "elevationGainMillimeters": 0}, "splitType": "DISTANCE"}], "date_str": "2026-10-04", "day_str": "Sun", "time_str": "18:06", "dt_iso": "2026-10-04T18:06:34+00:00"}];
+            const labels = rawData.map(r => r.date_str.slice(5) + " (" + r.day_str + ")");
+            const padding = { top: 25, right: 15, bottom: 35, left: 38 };
+
+            // 1. Distance Chart
+            const distCanvas = document.getElementById("distChart");
+            if (distCanvas) {
+                const ctx = distCanvas.getContext("2d");
+                const w = distCanvas.parentElement.clientWidth - 40;
+                distCanvas.width = w;
+                distCanvas.height = 260;
+                const chartW = w - padding.left - padding.right;
+                const chartH = 260 - padding.top - padding.bottom;
+                
+                const values = rawData.map(r => r.dist_km);
+                const maxVal = Math.max(...values) * 1.15;
+                
+                ctx.strokeStyle = "#334155";
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + (chartH / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(padding.left + chartW, y);
+                    ctx.stroke();
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "10px sans-serif";
+                    ctx.fillText((maxVal - (maxVal / 4) * i).toFixed(0) + "k", 8, y + 4);
+                }
+                
+                const barWidth = chartW / values.length * 0.65;
+                const step = chartW / values.length;
+                values.forEach((v, idx) => {
+                    const x = padding.left + step * idx + (step - barWidth) / 2;
+                    const barH = (v / maxVal) * chartH;
+                    const y = padding.top + chartH - barH;
+                    
+                    const grad = ctx.createLinearGradient(0, y, 0, y + barH);
+                    if (v >= 10.0) {
+                        grad.addColorStop(0, "#10b981");
+                        grad.addColorStop(1, "#059669");
+                    } else {
+                        grad.addColorStop(0, "#38bdf8");
+                        grad.addColorStop(1, "#0284c7");
+                    }
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(x, y, barWidth, barH);
+                    ctx.fillStyle = "#f8fafc";
+                    ctx.font = "bold 9px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(v.toFixed(1) + "k", x + barWidth / 2, y - 5);
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "9px sans-serif";
+                    ctx.fillText(labels[idx].slice(0, 5), x + barWidth / 2, 260 - 12);
+                });
+            }
+
+            // 2. Pace Chart
+            const paceCanvas = document.getElementById("paceChart");
+            if (paceCanvas) {
+                const ctx = paceCanvas.getContext("2d");
+                const w = paceCanvas.parentElement.clientWidth - 40;
+                paceCanvas.width = w;
+                paceCanvas.height = 260;
+                const chartW = w - padding.left - padding.right;
+                const chartH = 260 - padding.top - padding.bottom;
+                
+                const paceVals = rawData.map(r => r.pace_s / 60.0);
+                const minP = 5.0, maxP = 9.2;
+                
+                ctx.strokeStyle = "#334155";
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + (chartH / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(padding.left + chartW, y);
+                    ctx.stroke();
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "10px sans-serif";
+                    const pVal = minP + ((maxP - minP) / 4) * i;
+                    const pm = Math.floor(pVal), ps = Math.round((pVal - pm) * 60);
+                    ctx.fillText(pm + ":" + (ps < 10 ? "0" : "") + ps, 6, y + 4);
+                }
+                
+                const step = chartW / (paceVals.length - 1);
+                ctx.beginPath();
+                ctx.strokeStyle = "#f43f5e";
+                ctx.lineWidth = 2.5;
+                const points = [];
+                paceVals.forEach((p, idx) => {
+                    const x = padding.left + step * idx;
+                    const y = padding.top + ((p - minP) / (maxP - minP)) * chartH;
+                    points.push({ x, y, p });
+                    if (idx === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+                
+                points.forEach((pt, idx) => {
+                    ctx.fillStyle = "#f43f5e";
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    const pm = Math.floor(pt.p), ps = Math.round((pt.p - pm) * 60);
+                    ctx.fillStyle = "#f8fafc";
+                    ctx.font = "bold 9px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(pm + ":" + (ps < 10 ? "0" : "") + ps, pt.x, pt.y - 7);
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "9px sans-serif";
+                    ctx.fillText(labels[idx].slice(0, 5), pt.x, 260 - 12);
+                });
+            }
+
+            // 3. HR Chart
+            const hrCanvas = document.getElementById("hrChart");
+            if (hrCanvas) {
+                const ctx = hrCanvas.getContext("2d");
+                const w = hrCanvas.parentElement.clientWidth - 40;
+                hrCanvas.width = w;
+                hrCanvas.height = 260;
+                const chartW = w - padding.left - padding.right;
+                const chartH = 260 - padding.top - padding.bottom;
+                
+                const hrVals = rawData.map(r => r.hr || 145);
+                const minHR = 110, maxHR = 190;
+                
+                ctx.strokeStyle = "#334155";
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + (chartH / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(padding.left + chartW, y);
+                    ctx.stroke();
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "10px sans-serif";
+                    const hVal = Math.round(maxHR - ((maxHR - minHR) / 4) * i);
+                    ctx.fillText(hVal + " bpm", 2, y + 4);
+                }
+                
+                const yZ2Top = padding.top + ((maxHR - 152) / (maxHR - minHR)) * chartH;
+                const yZ2Bottom = padding.top + ((maxHR - 140) / (maxHR - minHR)) * chartH;
+                ctx.fillStyle = "rgba(16, 185, 129, 0.12)";
+                ctx.fillRect(padding.left, yZ2Top, chartW, yZ2Bottom - yZ2Top);
+                
+                const step = chartW / (hrVals.length - 1);
+                ctx.beginPath();
+                ctx.strokeStyle = "#f59e0b";
+                ctx.lineWidth = 2.5;
+                const points = [];
+                hrVals.forEach((h, idx) => {
+                    const x = padding.left + step * idx;
+                    const y = padding.top + ((maxHR - h) / (maxHR - minHR)) * chartH;
+                    points.push({ x, y, h });
+                    if (idx === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+                
+                points.forEach((pt, idx) => {
+                    ctx.fillStyle = "#f59e0b";
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = "#f8fafc";
+                    ctx.font = "bold 9px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(pt.h, pt.x, pt.y - 7);
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "9px sans-serif";
+                    ctx.fillText(labels[idx].slice(0, 5), pt.x, 260 - 12);
+                });
+            }
+
+            // 4. Cadence Chart
+            const cadCanvas = document.getElementById("cadChart");
+            if (cadCanvas) {
+                const ctx = cadCanvas.getContext("2d");
+                const w = cadCanvas.parentElement.clientWidth - 40;
+                cadCanvas.width = w;
+                cadCanvas.height = 260;
+                const chartW = w - padding.left - padding.right;
+                const chartH = 260 - padding.top - padding.bottom;
+                
+                const cadVals = rawData.map(r => r.cadence || 158);
+                const minC = 115, maxC = 185;
+                
+                ctx.strokeStyle = "#334155";
+                ctx.lineWidth = 1;
+                for (let i = 0; i <= 4; i++) {
+                    const y = padding.top + (chartH / 4) * i;
+                    ctx.beginPath();
+                    ctx.moveTo(padding.left, y);
+                    ctx.lineTo(padding.left + chartW, y);
+                    ctx.stroke();
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "10px sans-serif";
+                    const cVal = Math.round(maxC - ((maxC - minC) / 4) * i);
+                    ctx.fillText(cVal + " spm", 2, y + 4);
+                }
+                
+                const y174 = padding.top + ((maxC - 174) / (maxC - minC)) * chartH;
+                ctx.strokeStyle = "#10b981";
+                ctx.setLineDash([4, 4]);
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y174);
+                ctx.lineTo(padding.left + chartW, y174);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                
+                const step = chartW / (cadVals.length - 1);
+                ctx.beginPath();
+                ctx.strokeStyle = "#a855f7";
+                ctx.lineWidth = 2.5;
+                const points = [];
+                cadVals.forEach((c, idx) => {
+                    const x = padding.left + step * idx;
+                    const y = padding.top + ((maxC - c) / (maxC - minC)) * chartH;
+                    points.push({ x, y, c });
+                    if (idx === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+                
+                points.forEach((pt, idx) => {
+                    ctx.fillStyle = "#a855f7";
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = "#f8fafc";
+                    ctx.font = "bold 9px sans-serif";
+                    ctx.textAlign = "center";
+                    ctx.fillText(pt.c.toFixed(0), pt.x, pt.y - 7);
+                    ctx.fillStyle = "#94a3b8";
+                    ctx.font = "9px sans-serif";
+                    ctx.fillText(labels[idx].slice(0, 5), pt.x, 260 - 12);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
